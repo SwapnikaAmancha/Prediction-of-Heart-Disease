@@ -1,1 +1,6 @@
-# Prediction-of-Heart-Disease
+#Prediction of Heart Disease
+Data Source: The dataset is publically available on the Kaggle website, and it is from an ongoing cardiovascular study on residents of the town of Framingham, Massachusetts.
+Description of the data and methods: The sample dataset intends to pinpoint the most relevant/risk factors of heart disease as well as predict the overall risk. The dataset has over 4,000 records and 15 attributes.
+Data Mining Objective: We would like to develop a screening tool for predicting whether a patient has a risk of developing coronary heart disease(CHD) using logistic regression, Stepwise Logistic Regression, Decision Tree and Neural Networks. Our initial analysis was to identify which variable has the greatest influence on predicting heart disease. The assumptions are that data related to a patient’s cardiac health will be important, and we’d want to remove some insignificant or imbalance variables.
+Input: There are a total 15 dependent variables and each attribute is a potential risk factor. There are both demographic, behavioral and medical risk factors. Our independent variable is TenYearCHD, which is a categorical variable with 0 representing no risk and 1 representing having risk. 
+Output: The output of this study should be a predictive model that can predict a patient’s 10 years risk of coronary heart disease based on their personal data and medical history.
