@@ -1,0 +1,192 @@
+#Libraries to be loaded
+library(tidyverse)
+library(ggpubr)
+library(caret)
+library(caTools)
+library(MASS)
+library(corrplot)
+library(randomForest)
+library(repr)
+library(rpart)
+library(rpart.plot)
+library(neuralnet)
+
+#Reading the data
+heart <- read.csv("framingham.csv")
+summary(heart)
+attach(heart)
+summary(heart)
+Finding: male, education, currentSmoker, BPMeds, prevalentStroke, prevalentHyp, diabetes, TenYearCHD are categorical variables and the remaining are continuous variables.
+
+#Data Pre-processing: There were missing values in the data which were cleaned by replacing them with the median values.
+
+#Checking missing Values
+colSums(is.na(heart))
+which(is.na(heart[3]))
+which(is.na(heart[5]))
+which(is.na(heart[6]))
+which(is.na(heart[10]))
+which(is.na(heart[13]))
+which(is.na(heart[15]))
+Finding: There are missing values in the data, so we replace them with their respective median values
+
+#Replacing the missing values
+heart$education[which(is.na(heart$education))] <- median(heart$education, na.rm = TRUE)
+heart$cigsPerDay[which(is.na(heart$cigsPerDay))] <- median(heart$cigsPerDay, na.rm = TRUE)
+heart$BPMeds[which(is.na(heart$BPMeds))] <- median(heart$BPMeds, na.rm = TRUE)
+heart$totChol[which(is.na(heart$totChol))] <- median(heart$totChol, na.rm = TRUE)
+heart$BMI[which(is.na(heart$BMI))] <- median(heart$BMI, na.rm = TRUE)
+heart$glucose[which(is.na(heart$glucose))] <- median(heart$glucose, na.rm = TRUE)
+heart$heartRate[which(is.na(heart$heartRate))] <- median(heart$heartRate, na.rm = TRUE)
+
+#Visualizing the Data
+
+ggplot(gather(heart),aes(value))+
+geom_histogram(bins=10)+facet_wrap(~key,scales="free_x")
+
+Finding: Based on the plots, we could infer that variables like cigsPerDay, SysBP are positively skewed. Variable heartRate, diaBP have almost normal distributions. 
+
+#Correlation among Variables:
+cor(heart)
+heatmap(cor(heart), Rowv = NA, Colv = NA)
+
+Finding: Based on the Heat map, we could infer that cigsperday and CurrentSmoker are correlated with a correlation value of 0.76032603 
+
+#Logistic Regression
+
+set.seed(2)
+split<- sample.split(Y = heart$TenYearCHD,SplitRatio = .7)
+train_data=heart[split,]
+test_data=heart[!split,]
+
+logit_model=glm(TenYearCHD ~.,data = train_data,family = 'binomial');
+options(scipen=999)
+summary(logit_model)
+
+
+Finding: According to the Full model, which includes all the variables we can observe that male, age, cigsPerDay, sysBP and glucose are significant variables since their p-values are less than 0.05. 
+Based on the Coefficient values we can identify that currentsmoker, diabetes and glucose have a negative effect on heart health. 
+
+# use predict() with type = "response" to compute predicted probabilities. 
+logit.reg.pred <- predict(logit_model, test_data, type = "response")
+
+# first 5 actual and predicted records
+data.frame(actual = test_data$TenYearCHD[1:5], predicted = logit.reg.pred[1:5])
+library(caret)
+logit.reg.pred.classes <- ifelse(logit.reg.pred > 0.5, 1, 0)
+confusionMatrix(as.factor(logit.reg.pred.classes), as.factor(test_data$TenYearCHD))
+
+Finding: The predicted model has been tested on the Test dataset obtained from the split and we can see that the model is 85.661% efficient in predicting the outcome.
+
+empty_logit <- glm(TenYearCHD ~ 1,data = train_data, family= "binomial")
+summary(empty.logit.reg)
+
+#Finding the backward model
+We are going to run the backward model to find the significant variables.
+#R-Code 
+backwards = step(logit_model, direction = "backward")
+summary(backwards)
+
+backwards.reg.pred <- predict(backwards, test_data, type = "response")
+backwards.reg.pred.classes <- ifelse(backwards.reg.pred > 0.5, 1, 0)
+confusionMatrix(as.factor(backwards.reg.pred.classes), as.factor(test_data$TenYearCHD))
+
+Findings: Based on Backward elimination, we found that male, age, cigsPerDay, prevalentStroke, prevalentHyp, totChol, sysBP and glucose play an important role and this model shown a marginal improvement in accuracy of 85.77% in predicting the target variable.
+
+#Finding the Forward Model:
+We are going to find significant variables by running the forward model
+
+#R-Code
+forwards=step(empty_logit,scope=list(lower=formula(empty_logit),upper=formula(logit_model)), direction="forward",trace=0)
+formula(forwards)
+Summary(forwards)
+forwards.reg.pred <- predict(forwards, test_data, type = "response")
+forwards.reg.pred.classes <- ifelse(forwards.reg.pred > 0.5, 1, 0)
+confusionMatrix(as.factor(forwards.reg.pred.classes), as.factor(test_data$TenYearCHD))
+
+Based on Forward Model we found that TenYearCHD also depended significantly on age, sysBP,  male, cigsPerDay, glucose, prevalentHyp,  totChol and prevalentStroke similar to the backward model. So the accuracy in predicting has remained the same at 85.77%.
+
+#Step-Wise Model:
+stepwise=step(empty_logit,scope=list(lower=formula(empty_logit),upper=formula(logit_model)), direction="both",trace=1)
+formula(stepwise)
+
+Findings:
+By doing the Stepwise method, we found that TenYearCHD also depended significantly on the same variables, that is age, sysBP,  male, cigsPerDay, glucose, prevalentHyp,  totChol and prevalentStroke.
+Based on the above methods we chose 8 variables, they are age, sysBP,  male, cigsPerDay, glucose, prevalentHyp,  totChol and prevalentStroke. All the models show approximately 85% accuracy in predicting the outcome.
+
+#Neural Network Analysis
+
+# partition
+set.seed(123)  
+train.index <- sample(c(1:dim(heart)[1]), dim(heart)[1]*0.6)  #train data 60%, valid data 40%
+train.df <- heart[train.index, ]  
+valid.df <- heart[-train.index, ] #remaining data is valid data
+
+nn <- neuralnet(TenYearCHD ~ male +age+currentSmoker+cigsPerDay+BPMeds+prevalentStroke+prevalentHyp+diabetes+totChol+sysBP+diaBP+BMI+heartRate+glucose, data = train.df, linear.output = F, hidden = 5, stepmax = 1000000)
+plot(nn, rep="best")
+
+nn.pred <- predict(nn, valid.df, type = "response")
+nn.pred.classes <- ifelse(nn.pred > 0.5, 1, 0)
+confusionMatrix(as.factor(nn.pred.classes), as.factor(valid.df$TenYearCHD))
+
+Findings:
+The neural network takes all the 15 variables that are potential risk factors as input. The confusion matrix then shows that the validation dataset has an overall accuracy of 85.2% which is slightly less than training dataset.
+
+#Decision Tree Analysis
+
+#partition
+set.seed(1)
+training.index <- sample(c(1:dim(heart)[1]), dim(heart)[1]*0.6)  
+training.df <- heart[training.index, ]
+validation.df <- heart[-training.index,]
+
+Decision Tree 1:
+#Classification tree using all the variables
+dt1 <- rpart(TenYearCHD ~ ., data = training.df ,method = "class")
+
+#Plot tree
+prp(dt1, type = 1, extra = 2, under = TRUE, split.font = 1, varlen = -10)
+
+# Count number of leaf nodes
+length(dt1$frame$var[dt1$frame$var == "<leaf>"])
+
+#Prediction
+#predict() on training dataset
+dt1.training.pred <- predict(dt1,training.df,type = "class")
+confusionMatrix(dt1.training.pred, as.factor(training.df$TenYearCHD))
+
+#predict() on validation dataset
+dt1.validation.pred <- predict(dt1,validation.df,type = "class")
+confusionMatrix(dt1.validation.pred, as.factor(validation.df$TenYearCHD))
+
+#Decision Tree 2 :
+#Classification tree using the significant variables
+dt2 <- rpart(TenYearCHD ~ age + sysBP + male + cigsPerDay + glucose + prevalentHyp + totChol + prevalentStroke , data = training.df ,method = "class")
+
+#Plot tree
+prp(dt2, type = 1, extra = 2, under = TRUE, split.font = 1, varlen = -10)
+
+#Count number of leaves
+length(dt2$frame$var[dt2$frame$var == "<leaf>"])
+
+#Prediction 
+#predict() on training dataset
+dt2.training.pred <- predict(dt2,training.df,type = "class")
+confusionMatrix(dt2.training.pred, as.factor(training.df$TenYearCHD))
+
+#predict() on validation dataset
+dt2.validation.pred <- predict(dt2,validation.df,type = "class")
+confusionMatrix(dt2.validation.pred, as.factor(validation.df$TenYearCHD)) 
+
+Findings:
+The accuracy of the tree using all the variables and for the tree using the significant variables is 83.08%. The second decision tree has the same accuracy and is constructed using the significant variables found using the logistic regression. The accuracy of the validation dataset is slightly less compared to that of the training dataset for both the trees.
+
+Conclusion
+After conducting three analysis : Logistic Regression, decision tree, and neural network, we were able to create models with good accuracy in all three approaches. Based on using different methods, we were able to identify some key variables that are most impactful to developing coronary heart disease(CHD), such as : Gender, Cigarettes per day, Age, SysBP and Glucose. Gender seems to play a big factor on the result, with male tend to have a higher risk of developing CHD. Cigarettes per day also substantially increases a person’s risk of having CHD. This makes logical sense as many studies show the relationship between smoking and heart diseases. One thing that can improve the analysis is to have more data on people with CHD because the current dataset can be imbalanced toward people with no CHD.
+
+ 
+References
+Appendix
+http://www.who.int/mediacentre/factsheets/fs317/en/
+Data Source References
+https://www.kaggle.com/datasets/dileep070/heart-disease-prediction-using-logistic-regression?datasetId=222487
